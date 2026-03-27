@@ -1,0 +1,39 @@
+    alias: AI - Confirm And Execute Pending Prompt
+    mode: single
+    fields:
+      feedback_target:
+        name: Feedback target
+        required: false
+        selector:
+          entity:
+            domain: input_text
+
+    sequence:
+      - variables:
+          pending_prompt: "{{ states('input_text.ai_pending_executor_prompt') }}"
+          pending_summary: "{{ states('input_text.ai_pending_user_summary') }}"
+
+      - condition: template
+        value_template: "{{ pending_prompt not in ['', 'unknown', 'unavailable', none] }}"
+
+      - action: script.ai_execute_operational_prompt
+        response_variable: ai_exec
+        data:
+          executor_prompt: "{{ pending_prompt }}"
+          feedback_target: "{{ feedback_target if feedback_target is defined else '' }}"
+
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: ai_pending_execution
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.ai_pending_executor_prompt
+        data:
+          value: ""
+
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.ai_pending_user_summary
+        data:
+          value: ""
