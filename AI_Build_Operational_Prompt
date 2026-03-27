@@ -1,0 +1,92 @@
+alias: AI - Build Operational Prompt
+mode: parallel
+fields:
+  intention_prompt:
+    name: Intention prompt
+    required: true
+    selector:
+      text:
+        multiline: true
+  context_entities:
+    name: Context entities
+    required: true
+    selector:
+      object: null
+  allowed_entities:
+    name: Allowed entities
+    required: false
+    selector:
+      object: null
+  extra_rules:
+    name: Extra rules
+    required: false
+    selector:
+      text:
+        multiline: true
+  analyzer_task_entity_id:
+    name: Analyzer task entity id
+    required: false
+    default: ai_task.openai_ai_task
+    selector:
+      entity:
+        domain: ai_task
+sequence:
+  - variables:
+      _allowed_entities: |-
+        {% if allowed_entities is defined and allowed_entities is not none %}
+          {{ allowed_entities }}
+        {% else %}
+          {{ context_entities }}
+        {% endif %}
+      context_dump: "{% for e in context_entities %} - {{ e }} = {{ states(e) }} {% endfor %}"
+      allowed_entities_dump: "{% for e in _allowed_entities %} - {{ e }} {% endfor %}"
+      planner_instructions: >-
+        Sei la AI di ANALISI di una automazione Home Assistant.
+        Obiettivo: {{ intention_prompt }}
+        Contesto attuale: {{ context_dump }}
+        Entità autorizzate per l'eventuale esecuzione: {{ allowed_entities_dump
+        }}
+        Regole aggiuntive: {{ extra_rules if extra_rules is defined and
+        extra_rules else 'Nessuna regola aggiuntiva.' }}
+        Compito: - Analizza il contesto. - Decidi se sia opportuno agire oppure
+        no. - Non eseguire alcuna azione. - Genera un prompt operativo breve,
+        chiaro e concreto per una seconda AI esecutiva. - Se non è necessario
+        agire, restituisci should_act = no e lascia comunque una motivazione
+        chiara.
+  - action: ai_task.generate_data
+    response_variable: planner_result
+    data:
+      entity_id: "{{ analyzer_task_entity_id }}"
+      task_name: ai_operational_planner
+      instructions: "{{ planner_instructions }}"
+      structure:
+        should_act:
+          description: Rispondi solo yes oppure no
+          required: true
+          selector:
+            text: null
+        reason:
+          description: Motivazione sintetica della decisione
+          required: true
+          selector:
+            text: null
+        user_summary:
+          description: Breve riepilogo leggibile dall'utente
+          required: true
+          selector:
+            text: null
+        executor_prompt:
+          description: Prompt operativo da passare alla AI esecutiva
+          required: true
+          selector:
+            text: null
+  - variables:
+      script_response:
+        should_act: "{{ planner_result.data.should_act | default('no') }}"
+        reason: "{{ planner_result.data.reason | default('Nessuna motivazione') }}"
+        user_summary: "{{ planner_result.data.user_summary | default('Nessun riepilogo') }}"
+        executor_prompt: "{{ planner_result.data.executor_prompt | default('') }}"
+        conversation_id: "{{ planner_result.conversation_id | default('') }}"
+  - stop: Planner completed
+    response_variable: script_response
+description: ""
