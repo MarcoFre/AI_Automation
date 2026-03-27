@@ -1,0 +1,8 @@
+input_text:
+  ai_pending_executor_prompt:
+    name: AI Pending Executor Prompt
+    max: 255
+
+  ai_pending_user_summary:
+    name: AI Pending User Summary
+    max: 255
