@@ -1,4 +1,4 @@
-alias: AI - Build Operational Prompt
+alias: AI - Build Operational Prompt - v0.9
 mode: parallel
 fields:
   intention_prompt:
@@ -42,17 +42,26 @@ sequence:
       allowed_entities_dump: "{% for e in _allowed_entities %} - {{ e }} {% endfor %}"
       planner_instructions: >-
         Sei la AI di ANALISI di una automazione Home Assistant.
+
         Obiettivo: {{ intention_prompt }}
+
         Contesto attuale: {{ context_dump }}
+
         Entità autorizzate per l'eventuale esecuzione: {{ allowed_entities_dump
         }}
+
         Regole aggiuntive: {{ extra_rules if extra_rules is defined and
         extra_rules else 'Nessuna regola aggiuntiva.' }}
-        Compito: - Analizza il contesto. - Decidi se sia opportuno agire oppure
-        no. - Non eseguire alcuna azione. - Genera un prompt operativo breve,
-        chiaro e concreto per una seconda AI esecutiva. - Se non è necessario
-        agire, restituisci should_act = no e lascia comunque una motivazione
-        chiara.
+
+        Compito: - Analizza il contesto. - Decidi se, in base al contesto
+        attuale, sarebbe opportuno che una seconda AI eseguisse un'azione. - Tu
+        non devi eseguire alcuna azione direttamente. - Il valore should_act
+        deve indicare se la seconda AI debba agire oppure no. - Se le condizioni
+        per intervenire sono soddisfatte, restituisci should_act = yes. - Se non
+        è necessario intervenire, restituisci should_act = no. - Genera un
+        prompt operativo breve, chiaro e concreto per una seconda AI esecutiva.
+        - Se should_act = no, il prompt operativo può anche indicare di non
+        eseguire alcuna azione.
   - action: ai_task.generate_data
     response_variable: planner_result
     data:
@@ -90,3 +99,4 @@ sequence:
   - stop: Planner completed
     response_variable: script_response
 description: ""
+
