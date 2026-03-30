@@ -1,63 +1,68 @@
-    alias: AI - Execute Operational Prompt
-    mode: parallel
-    fields:
-      executor_prompt:
-        name: Executor prompt
-        required: true
-        selector:
-          text:
-            multiline: true
+alias: AI - Execute Operational Prompt
+description: ""
+mode: parallel
+fields:
+  executor_prompt:
+    name: Executor prompt
+    required: true
+    selector:
+      text:
+        multiline: true
+  executor_agent_id:
+    name: Executor agent id
+    required: false
+    default: conversation.openai_conversation
+    selector:
+      entity:
+        domain: conversation
+  feedback_target:
+    name: Feedback target
+    required: false
+    selector:
+      entity:
+        domain: input_text
+sequence:
+  - variables:
+      resolved_executor_agent_id: >-
+        {% if executor_agent_id is defined and executor_agent_id not in ['',
+        none, 'unknown', 'unavailable'] %}
+          {{ executor_agent_id }}
+        {% else %}
+          conversation.openai_conversation
+        {% endif %}
+  - action: conversation.process
+    response_variable: executor_result
+    data:
+      agent_id: "{{ resolved_executor_agent_id }}"
+      language: it
+      text: "{{ executor_prompt }}"
+  - variables:
+      executor_feedback: |-
+        {% if executor_result.response is defined
+              and executor_result.response.speech is defined
+              and executor_result.response.speech.plain is defined
+              and executor_result.response.speech.plain.speech is defined %}
+          {{ executor_result.response.speech.plain.speech }}
+        {% else %}
+          Nessun feedback restituito dall'agente esecutivo.
+        {% endif %}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ feedback_target is defined and feedback_target not in ['',
+              none] }}
+        sequence:
+          - action: input_text.set_value
+            target:
+              entity_id: "{{ feedback_target }}"
+            data:
+              value: "{{ executor_feedback[:255] }}"
+  - variables:
+      script_response:
+        success: true
+        feedback: "{{ executor_feedback }}"
+        conversation_id: "{{ executor_result.conversation_id | default('') }}"
+  - stop: Executor completed
+    response_variable: script_response
 
-      executor_agent_id:
-        name: Executor agent id
-        required: false
-        default: conversation.openai_conversation
-        selector:
-          entity:
-            domain: conversation
-
-      feedback_target:
-        name: Feedback target
-        required: false
-        selector:
-          entity:
-            domain: input_text
-
-    sequence:
-      - action: conversation.process
-        response_variable: executor_result
-        data:
-          agent_id: "{{ executor_agent_id }}"
-          language: it
-          text: "{{ executor_prompt }}"
-
-      - variables:
-          executor_feedback: >-
-            {% if executor_result.response is defined
-                  and executor_result.response.speech is defined
-                  and executor_result.response.speech.plain is defined
-                  and executor_result.response.speech.plain.speech is defined %}
-              {{ executor_result.response.speech.plain.speech }}
-            {% else %}
-              Nessun feedback restituito dall'agente esecutivo.
-            {% endif %}
-
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ feedback_target is defined and feedback_target not in [none, ''] }}"
-            sequence:
-              - action: input_text.set_value
-                target:
-                  entity_id: "{{ feedback_target }}"
-                data:
-                  value: "{{ executor_feedback[:255] }}"
-
-      - variables:
-          script_response:
-            success: true
-            feedback: "{{ executor_feedback }}"
-            conversation_id: "{{ executor_result.conversation_id | default('') }}"
-
-      - stop: "Executor completed"
-        response_variable: script_response
