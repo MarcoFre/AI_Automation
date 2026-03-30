@@ -1,0 +1,104 @@
+alias: AI - Confirm And Execute By Voice v0.9
+description: ""
+mode: single
+fields:
+  voice_assistant_entity_id:
+    name: Voice assistant entity id
+    required: true
+    selector:
+      entity:
+        domain: assist_satellite
+  user_summary:
+    name: User summary
+    required: true
+    selector:
+      text:
+        multiline: true
+  executor_prompt:
+    name: Executor prompt
+    required: true
+    selector:
+      text:
+        multiline: true
+  feedback_target:
+    name: Feedback target
+    required: false
+    selector:
+      entity:
+        domain: input_text
+sequence:
+  - action: assist_satellite.ask_question
+    continue_on_error: true
+    response_variable: confirm_answer
+    data:
+      entity_id: "{{ voice_assistant_entity_id }}"
+      preannounce: true
+      question: "{{ user_summary }}. Vuoi che proceda?"
+      answers:
+        - id: "yes"
+          sentences:
+            - sì
+            - si
+            - certo
+            - procedi
+            - conferma
+            - va bene
+            - ok
+        - id: "no"
+          sentences:
+            - "no"
+            - annulla
+            - non procedere
+            - ferma
+            - lascia stare
+            - non farlo
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ confirm_answer.id == 'yes' }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ feedback_target is defined and feedback_target not in
+                      ['', none] }}
+                sequence:
+                  - action: script.ai_execute_operational_prompt
+                    response_variable: ai_exec
+                    data:
+                      executor_prompt: "{{ executor_prompt }}"
+                      feedback_target: "{{ feedback_target }}"
+            default:
+              - action: script.ai_execute_operational_prompt
+                response_variable: ai_exec
+                data:
+                  executor_prompt: "{{ executor_prompt }}"
+          - variables:
+              execution_feedback: |-
+                {{
+                  ai_exec.feedback
+                  if ai_exec is defined and ai_exec.feedback is defined
+                  else 'Operazione completata.'
+                }}
+          - action: assist_satellite.announce
+            data:
+              entity_id: "{{ voice_assistant_entity_id }}"
+              preannounce: false
+              message: "{{ execution_feedback }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ confirm_answer.id == 'no' }}"
+        sequence:
+          - action: assist_satellite.announce
+            data:
+              entity_id: "{{ voice_assistant_entity_id }}"
+              preannounce: false
+              message: Va bene, annullo.
+    default:
+      - action: assist_satellite.announce
+        data:
+          entity_id: "{{ voice_assistant_entity_id }}"
+          preannounce: false
+          message: Non ho ricevuto una conferma valida. Non eseguo nulla.
+
